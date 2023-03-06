@@ -9,7 +9,9 @@ LiquidCrystal_I2C lcd(0x3F, 16, 2);           //LCD ekranın özelliklerini tan�
 #include <SPI.h>                              //İletiişim kütüphanesi.
 #include <MFRC522.h>                          //RFID kütüphanesi.
 #include <Servo.h>                            //Servo kütüphanesi.
-
+//------------------------------------------------------------------------------------wifi-----------------------------------------------------------------------
+#include <SoftwareSerial.h>     
+SoftwareSerial EspSerial(2, 3); // RX, TX
 //------------------------------------------------------------------------------------RFID ve servonun pininini tanıtıyourz--------------------------------------
 
 int RST_PIN = 9;                              //RFID nin reset pinini tanıtıyoruz.
@@ -35,20 +37,46 @@ Servo motor;                                  //Servo motor için değişken olu
 MFRC522 rfid(SS_PIN, RST_PIN);                //RFID modülünün ayarlarını yapıyoruz.
 byte ID[4] = {101,217,0,109};                 //ID bilgisini giriyoruz.
 
-//------------------------------------------------------------------------------------Gaz sensörünün pinlerini tanıtıyoruz---------------------------------------
+//------------------------------------------------------------------------------------wifi-----------------------------------------------------------------------
+#define BLYNK_TEMPLATE_ID           "TMPLWV0bOxGd"
+#define BLYNK_TEMPLATE_NAME         "bozulma orannını gösteren proje"
+#define BLYNK_AUTH_TOKEN            "zNKoLfnw2nPmELF-UlTo840VNlZKw63N"
+#define BLYNK_PRINT Serial
+#include <ESP8266_Lib.h>
+#include <BlynkSimpleShieldEsp8266.h>                          //Seri haberleşme pin ayarlarını yapıyoruz.
+char ssid[] = "Lord 2.4";
+char pass[] = "sifre12345";
+#define ESP8266_BAUD 115200
+ESP8266 wifi(&EspSerial);
+#define MQ2pin A0
+uint16_t smoke;                          
+BlynkTimer timer;
 
-MQ2 mq2(Analog_Input);                        //Gaz sensörünü analog giriş olarak tanıtıyoruz.
-int Analog_Input = A0;                        //Gaz sensörünü analog girişni A0 olarak tanıtıyoruz.
-int smoke;                                    //Dumanı (bozulam oranını ölçüyoruz).
+void sensorOku()
+{
+  smoke = analogRead(MQ2pin); 
+  Blynk.virtualWrite(V1, smoke);
 
+  delay(2000); 
+}
 
 void setup(){
+
+//------------------------------------------------------------------------------------wifi-----------------------------------------------------------------------
+ Serial.begin(9600);
+
+  EspSerial.begin(ESP8266_BAUD);
+  delay(10);
+
+  Blynk.begin(BLYNK_AUTH_TOKEN, wifi, ssid, pass, "blynk.cloud", 80);
+
+  pinMode(MQ2pin, INPUT);
+  timer.setInterval(1000, sensorOku);
 
 //------------------------------------------------------------------------------------Lcd ve gaz sensörünü başlatıyoruz------------------------------------------
 
   lcd.init();                                 //Lcd ekranı başlatıyoruz.
   lcd.backlight();                            //Lcd ekranın arka ışıgını başlatıyoruz.
-  mq2.begin();                                //Gaz sensörünü başlatıyoruz.
 
 //------------------------------------------------------------------------------------RFID yi başlatıyoruz-------------------------------------------------------
 
@@ -65,19 +93,18 @@ void setup(){
 
   pinMode (yled,OUTPUT);                      //Yeşil ledi çıkış olarak ayarlıyoruz.
   pinMode (kled,OUTPUT);                      //Kırmızı ledi çıkış olarak ayarlıyoruz.
-  
 }
 
 void loop(){
 
-//------------------------------------------------------------------------------------Gaz sensörünü okuyoruz-----------------------------------------------------
-
-  float* values= mq2.read(true);              //Gazdan gelen bilgileri okuyoruz.
-  smoke = mq2.readSmoke();                    //Gazdan duman bilgsini okuyoruz.
-
+//------------------------------------------------------------------------------------wifi-----------------------------------------------------------------------
+  {
+  Blynk.run();
+  timer.run();
+}
 //------------------------------------------------------------------------------------Buzzeri ve ledi yakıyoruz--------------------------------------------------
-
-   int bilgi = analogRead (A0);               //Bilgi için gaz sensörünü kullanıyoruz.
+  
+  int bilgi = analogRead (A0);               //Bilgi için gaz sensörünü kullanıyoruz.
   if (bilgi>esikDeger) {                      //Gelen değerin esik değerden büyük olursa yapılıcakları;
     digitalWrite(buzzerPin,0);                //Buzzer pinini devre dışı bırakıyoruz.
     digitalWrite(kled,1);                     //Kırmızı ledi aktifleştiriyoruz.
@@ -91,10 +118,10 @@ void loop(){
     delay(70);                                //70ms bekliyoruz.
     digitalWrite(kled,0);                     //Kırmızı led aktifleştiriyoruz.
     delay(70);                                //70ms bekliyoruz.                              
-
-  //son 8 satırın amacı kırmızı ledin ve buzzerin açılıp kapanmasını sağlamak.
   } 
-  else{                                       //Yetkisiz girişte içerideki komutlar çalıştırılır.
+  //son 8 satırın amacı kırmızı ledin ve buzzerin açılıp kapanmasını sağlamak.
+  
+  else{                                      
     digitalWrite(buzzerPin,0);                //Buzzer pinin devre dışı bırakıyoruz.                
     digitalWrite(kled,0);                     //Kırmızı ledi devredışı bırakıyoruz.
     digitalWrite(yled,1);                     //Yeşil ledi başlatıyırouz.
@@ -148,10 +175,6 @@ void loop(){
       delay(3000);                            //3000ms bekliyoruz.
    }
   rfid.PICC_HaltA();                          //RFID kartın yeni kart okuyana kadar durmasını sağlıyoruz.
-
-
-
 }
 
 //*************************************************************** M_YAHYA ********************************************************
-
